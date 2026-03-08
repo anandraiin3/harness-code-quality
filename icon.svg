@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <!-- Purple → Sky-blue gradient for the background -->
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#0ea5e9"/>
+    </linearGradient>
+    <!-- Subtle inner glow on the shield -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Rounded-square background -->
+  <rect width="128" height="128" rx="22" fill="url(#bg)"/>
+
+  <!-- Shield body (white, slightly transparent) -->
+  <path d="M64 18
+           L92 30
+           L92 62
+           Q92 90 64 108
+           Q36 90 36 62
+           L36 30
+           Z"
+        fill="white" opacity="0.18"/>
+
+  <!-- Shield outline (solid white) -->
+  <path d="M64 22
+           L88 33
+           L88 62
+           Q88 87 64 104
+           Q40 87 40 62
+           L40 33
+           Z"
+        fill="white" opacity="0.95" filter="url(#glow)"/>
+
+  <!-- Code brackets: < and > in gradient purple -->
+  <text x="44" y="74"
+        font-family="'Courier New', Courier, monospace"
+        font-size="26" font-weight="900"
+        fill="#7c3aed">&lt;</text>
+  <text x="73" y="74"
+        font-family="'Courier New', Courier, monospace"
+        font-size="26" font-weight="900"
+        fill="#0ea5e9">&gt;</text>
+  <!-- Forward slash between them -->
+  <text x="60" y="74"
+        font-family="'Courier New', Courier, monospace"
+        font-size="26" font-weight="900"
+        fill="#6366f1">/</text>
+
+  <!-- AI sparkle — top-right corner star burst -->
+  <!-- Central dot -->
+  <circle cx="101" cy="27" r="4.5" fill="white" opacity="0.95"/>
+  <!-- Four rays -->
+  <line x1="101" y1="18" x2="101" y2="22" stroke="white" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+  <line x1="101" y1="32" x2="101" y2="36" stroke="white" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+  <line x1="92"  y1="27" x2="96"  y2="27" stroke="white" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+  <line x1="106" y1="27" x2="110" y2="27" stroke="white" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+  <!-- Diagonal rays (smaller) -->
+  <line x1="95"  y1="21" x2="97.5" y2="23.5" stroke="white" stroke-width="1.8" stroke-linecap="round" opacity="0.7"/>
+  <line x1="104.5" y1="30.5" x2="107" y2="33" stroke="white" stroke-width="1.8" stroke-linecap="round" opacity="0.7"/>
+  <line x1="107" y1="21" x2="104.5" y2="23.5" stroke="white" stroke-width="1.8" stroke-linecap="round" opacity="0.7"/>
+  <line x1="97.5" y1="30.5" x2="95"  y2="33"  stroke="white" stroke-width="1.8" stroke-linecap="round" opacity="0.7"/>
+
+  <!-- Small accent dots — bottom-left -->
+  <circle cx="28" cy="100" r="3"   fill="white" opacity="0.4"/>
+  <circle cx="22" cy="108" r="2"   fill="white" opacity="0.25"/>
+  <circle cx="34" cy="108" r="1.5" fill="white" opacity="0.2"/>
+</svg>

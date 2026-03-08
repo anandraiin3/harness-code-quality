@@ -1,0 +1,206 @@
+# Harness Plugin Descriptor
+# This file registers the plugin in the Harness Plugin Hub and defines
+# the UI fields shown when a user adds this step to a pipeline.
+#
+# Reference: https://developer.harness.io/docs/continuous-integration/use-ci/use-drone-plugins/custom-plugins
+
+name: harness-code-quality
+displayName: AI Code Quality Scanner
+description: |
+  Scan your codebase with AI for code quality issues, security vulnerabilities,
+  technical debt, and maintainability problems.
+  Supports OpenAI, Anthropic (Claude), and Google Gemini.
+  Outputs pipeline-scoped variables for downstream gating and reporting.
+version: "1.0.0"
+kind: plugin
+image: anandraiin3/harness-code-quality:latest
+icon: https://raw.githubusercontent.com/anandraiin3/harness-code-quality/main/icon.svg
+
+spec:
+  # -------------------------------------------------------------------------
+  # INPUT FIELDS
+  # Each input maps to a PLUGIN_<NAME_UPPERCASE> environment variable.
+  # -------------------------------------------------------------------------
+  inputs:
+
+    # ---- Provider ----------------------------------------------------------
+    - name: llm_provider
+      displayName: LLM Provider
+      description: AI provider to use for code analysis.
+      type: select
+      required: true
+      default: openai
+      options:
+        - value: openai
+          label: "OpenAI  (GPT-4o, GPT-4o-mini)"
+        - value: anthropic
+          label: "Anthropic  (Claude Opus, Sonnet, Haiku)"
+        - value: gemini
+          label: "Google  (Gemini 1.5 Pro, Flash)"
+
+    # ---- API Key -----------------------------------------------------------
+    - name: api_key
+      displayName: API Key
+      description: |
+        Secret key for the chosen provider. Store in Harness Secrets first.
+          OpenAI    → https://platform.openai.com/api-keys
+          Anthropic → https://console.anthropic.com/settings/keys
+          Gemini    → https://aistudio.google.com/app/apikey
+        Recommended secret names: org.OPENAI_API_KEY / org.ANTHROPIC_API_KEY / org.GEMINI_API_KEY
+      type: secret
+      required: true
+
+    # ---- Model -------------------------------------------------------------
+    - name: model
+      displayName: Model
+      description: |
+        Model to use. Leave empty to auto-select the best available model
+        from the provider's own models API (recommended).
+
+        Auto-selection rules:
+          standard preset  → lightweight/fast model  (cheaper per build)
+          full-audit preset → most capable model     (thorough PR reviews)
+
+        To pin a specific model, enter its exact ID:
+          OpenAI:    gpt-4o  |  gpt-4o-mini  |  gpt-4-turbo  |  gpt-3.5-turbo
+          Anthropic: claude-opus-4-6  |  claude-sonnet-4-6  |  claude-haiku-4-5-20251001
+          Gemini:    gemini-1.5-pro  |  gemini-1.5-flash  |  gemini-2.0-flash
+      type: string
+      required: false
+      default: ""
+
+    # ---- Analysis Profile (Prompt Preset) ----------------------------------
+    - name: prompt_preset
+      displayName: Analysis Profile
+      description: Depth and focus of the quality scan.
+      type: select
+      required: false
+      default: standard
+      options:
+        - value: standard
+          label: "Standard — Balanced sweep (every build)"
+          description: "Maintainability · Security · Performance · Reliability · Overall score"
+        - value: security
+          label: "Security — OWASP/CVE deep-dive (pre-deploy gate)"
+          description: "Security posture · Severity rating · Vulnerability count"
+        - value: tech-debt
+          label: "Tech Debt — Maintainability focus (quarterly review)"
+          description: "Duplication · Complexity · Debt hours estimate"
+        - value: full-audit
+          label: "Full Audit — Complete report (PR-to-main gate)"
+          description: "All dimensions · Findings count · Top finding · Top recommendation"
+
+    # ---- Custom Prompt Override --------------------------------------------
+    - name: custom_prompt
+      displayName: Custom Prompt (optional)
+      description: |
+        Provide your own analysis instructions. When set, Analysis Profile is ignored.
+        Your prompt MUST tell the LLM to return JSON and include the expected schema.
+        Example: "Analyze this code for PCI-DSS compliance. Return JSON: {\"compliant\":true/false,\"issues\":number,\"summary\":\"string\"}"
+      type: string
+      required: false
+      default: ""
+
+    # ---- What to Scan ------------------------------------------------------
+    - name: scan_paths
+      displayName: Scan Paths (optional)
+      description: |
+        Comma-separated files or folders to scan, relative to the workspace root.
+        Leave empty to scan the entire workspace.
+        Examples:
+          src/api,src/models           (two directories)
+          src/auth/login.py            (single file)
+          src/api,tests/unit/auth.py   (mixed)
+      type: string
+      required: false
+      default: ""
+
+    - name: file_extensions
+      displayName: File Extensions
+      description: Comma-separated file extensions to include when scanning directories.
+      type: string
+      required: false
+      default: "cs,py,js,ts,java"
+
+    - name: max_files
+      displayName: Max Files
+      description: Maximum number of source files to collect and send to the LLM.
+      type: number
+      required: false
+      default: 20
+
+    - name: max_chars
+      displayName: Max Characters
+      description: Maximum characters of source code to send (controls token cost).
+      type: number
+      required: false
+      default: 100000
+
+    # ---- Timeout & Retry ---------------------------------------------------
+    - name: timeout_seconds
+      displayName: Timeout (seconds)
+      description: |
+        Maximum seconds to wait for a single LLM API response before giving up.
+        Default: 300 (5 minutes). Increase for large codebases or slow providers.
+        The plugin retries automatically on timeout — see Retry Count.
+      type: number
+      required: false
+      default: 300
+
+    - name: retry_count
+      displayName: Retry Count
+      description: |
+        Number of additional attempts after a timeout or transient network error.
+        Default: 2 (up to 3 total attempts, with 15 s / 30 s backoff between retries).
+        Set to 0 to disable retries.
+      type: number
+      required: false
+      default: 2
+
+    # ---- Quality Gate ------------------------------------------------------
+    - name: fail_on_critical
+      displayName: Fail on Critical Issues
+      description: Exit with a non-zero code if the LLM detects any critical issues.
+      type: boolean
+      required: false
+      default: false
+
+  # -------------------------------------------------------------------------
+  # OUTPUT VARIABLES
+  # Available as <+pipeline.variables.cq.*> after this step
+  # -------------------------------------------------------------------------
+  outputs:
+    - name: PROMPT_PRESET
+      description: Which analysis profile ran (standard / security / tech-debt / full-audit)
+    - name: OVERALL_SCORE
+      description: Weighted overall quality score (0–10)
+    - name: MAINTAINABILITY_SCORE
+      description: Naming, readability, method length, documentation (0–10)
+    - name: SECURITY_SCORE
+      description: OWASP coverage, hardcoded secrets, insecure patterns (0–10)
+    - name: PERFORMANCE_SCORE
+      description: Algorithmic efficiency, blocking calls, memory (0–10)
+    - name: RELIABILITY_SCORE
+      description: Error handling, null safety, edge cases (0–10)
+    - name: TESTABILITY_SCORE
+      description: Coupling, side effects, dependency injection (0–10; full-audit only)
+    - name: COMPLEXITY_SCORE
+      description: Cyclomatic complexity, nesting, god classes (0–10; tech-debt + full-audit)
+    - name: DUPLICATION_SCORE
+      description: Code duplication level (0–10; tech-debt + full-audit)
+    - name: CODE_SMELLS
+      description: Total count of code smell instances
+    - name: CRITICAL_ISSUES
+      description: Issues that would cause production bugs, outages, or breaches
+    - name: SEVERITY
+      description: Highest risk level found (none / low / medium / high / critical)
+    - name: DEBT_HOURS_ESTIMATE
+      description: Hours to remediate all visible debt (tech-debt + full-audit)
+    - name: FINDINGS_COUNT
+      description: Total distinct findings across all severities (full-audit only)
+    - name: TOP_FINDING
+      description: Single most important issue found, one sentence (full-audit only)
+    - name: TOP_RECOMMENDATION
+      description: Most impactful improvement action, one sentence (full-audit only)
+    - name: SUMMARY
+      description: One-to-two sentence overall assessment

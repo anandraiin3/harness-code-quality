@@ -1,0 +1,233 @@
+# yaml-language-server: $schema=
+# Harness Template: Code Quality Checks Using AI Agent (Plugin Step version)
+# This replaces the original inline Run step with a proper Plugin step
+# backed by the Docker image: anandraiin3/harness-code-quality:latest
+
+template:
+  name: Code Quality Checks Using AI Agent
+  identifier: Code_Quality_Checks_Using_AI_Agent
+  versionLabel: v2
+  type: StepGroup
+  orgIdentifier: default
+  tags: {}
+  spec:
+    stageType: CI
+    steps:
+
+      # =======================================================================
+      # STEP A — Standard scan (every build / every push)
+      #
+      # Runs on: all builds EXCEPT PRs targeting main
+      # Preset:  standard  (maintainability, security, performance, reliability)
+      # Model:   gpt-4o-mini — fast and cost-efficient
+      # =======================================================================
+      - step:
+          type: Plugin
+          name: AI Code Quality Check
+          identifier: AI_Code_Quality_Check
+          spec:
+            connectorRef: account.Dockerhub
+            image: anandraiin3/harness-code-quality:latest
+            privileged: false
+            settings:
+
+              # ---------------------------------------------------------------
+              # LLM provider + API key
+              # Options: openai | anthropic | gemini
+              # ---------------------------------------------------------------
+              llm_provider: openai
+              # Uncomment the matching api_key line for your chosen provider:
+              api_key: <+secrets.getValue("org.OPENAI_API_KEY")>
+              # api_key: <+secrets.getValue("org.ANTHROPIC_API_KEY")>
+              # api_key: <+secrets.getValue("org.GEMINI_API_KEY")>
+
+              # Lightweight model — suitable for every-commit scan
+              # openai:    gpt-4o-mini        anthropic: claude-haiku-4-5-20251001
+              # gemini:    gemini-1.5-flash
+              model: gpt-4o-mini
+
+              # Analysis profile
+              prompt_preset: standard
+
+              # ---------------------------------------------------------------
+              # What to scan
+              # Option A (default): scan entire workspace — leave scan_paths commented out
+              # Option B: specific files/folders (comma-separated, relative to workspace root)
+              #   scan_paths: src/api,src/models
+              #   scan_paths: src/auth/login.py
+              #   scan_paths: src/api,tests/unit/auth.py
+              # ---------------------------------------------------------------
+              file_extensions: cs,py,js,ts,java
+              max_files: "20"
+              # max_chars: "100000"
+              # scan_paths: src/api,src/models
+
+              # Fail the step if critical_issues > 0
+              fail_on_critical: "false"
+
+            outputVariables:
+              - name: PROMPT_PRESET
+              - name: OVERALL_SCORE
+              - name: MAINTAINABILITY_SCORE
+              - name: SECURITY_SCORE
+              - name: PERFORMANCE_SCORE
+              - name: RELIABILITY_SCORE
+              - name: TESTABILITY_SCORE
+              - name: COMPLEXITY_SCORE
+              - name: DUPLICATION_SCORE
+              - name: CODE_SMELLS
+              - name: CRITICAL_ISSUES
+              - name: SEVERITY
+              - name: DEBT_HOURS_ESTIMATE
+              - name: FINDINGS_COUNT
+              - name: TOP_FINDING
+              - name: TOP_RECOMMENDATION
+              - name: SUMMARY
+
+            outputAlias:
+              key: cq
+              scope: Pipeline
+
+          when:
+            stageStatus: Success
+            # Run on every build that is NOT a PR targeting main.
+            # codebase.prNumber is null for push builds; targetBranch is only
+            # set (to the PR target) for pull request triggers.
+            condition: <+codebase.prNumber> == null || <+codebase.targetBranch> != "main"
+
+      # =======================================================================
+      # STEP B — Full audit (PRs targeting main only)
+      #
+      # Runs on: pull requests where targetBranch == "main"
+      # Preset:  full-audit  (all dimensions + findings + recommendations)
+      # Model:   gpt-4o — use a capable model; full-audit generates more output
+      # =======================================================================
+      - step:
+          type: Plugin
+          name: AI Code Quality Full Audit
+          identifier: AI_Code_Quality_Full_Audit
+          spec:
+            connectorRef: account.Dockerhub
+            image: anandraiin3/harness-code-quality:latest
+            privileged: false
+            settings:
+
+              # ---------------------------------------------------------------
+              # LLM provider + API key  (match what you used in Step A)
+              # ---------------------------------------------------------------
+              llm_provider: openai
+              api_key: <+secrets.getValue("org.OPENAI_API_KEY")>
+              # api_key: <+secrets.getValue("org.ANTHROPIC_API_KEY")>
+              # api_key: <+secrets.getValue("org.GEMINI_API_KEY")>
+
+              # Full model — full-audit needs richer reasoning + larger output
+              # openai:    gpt-4o             anthropic: claude-opus-4-6
+              # gemini:    gemini-1.5-pro
+              model: gpt-4o
+
+              # Analysis profile
+              prompt_preset: full-audit
+
+              # Scan more files for a PR review — increase context budget
+              file_extensions: cs,py,js,ts,java
+              max_files: "40"
+              max_chars: "200000"
+              # scan_paths: src/api,src/models
+
+              # Fail the PR if critical issues are found — enforce quality gate
+              fail_on_critical: "true"
+
+            outputVariables:
+              - name: PROMPT_PRESET
+              - name: OVERALL_SCORE
+              - name: MAINTAINABILITY_SCORE
+              - name: SECURITY_SCORE
+              - name: PERFORMANCE_SCORE
+              - name: RELIABILITY_SCORE
+              - name: TESTABILITY_SCORE
+              - name: COMPLEXITY_SCORE
+              - name: DUPLICATION_SCORE
+              - name: CODE_SMELLS
+              - name: CRITICAL_ISSUES
+              - name: SEVERITY
+              - name: DEBT_HOURS_ESTIMATE
+              - name: FINDINGS_COUNT
+              - name: TOP_FINDING
+              - name: TOP_RECOMMENDATION
+              - name: SUMMARY
+
+            outputAlias:
+              key: cq
+              scope: Pipeline
+
+          when:
+            stageStatus: Success
+            # Run ONLY for pull requests targeting main.
+            condition: <+codebase.prNumber> != null && <+codebase.targetBranch> == "main"
+
+    when:
+      stageStatus: Success
+
+##############################################################################
+# HOW THE TRIGGER LOGIC WORKS
+#
+# Harness built-in variable reference:
+#   <+codebase.prNumber>     - set to the PR number (string) for PR triggers;
+#                              null for push/manual builds
+#   <+codebase.targetBranch> - target branch of the PR (e.g. "main");
+#                              empty for non-PR triggers
+#
+# Result:
+#   Push to any branch    → Step A runs  (standard,   gpt-4o-mini)
+#   Manual run            → Step A runs  (standard,   gpt-4o-mini)
+#   PR to any branch      → Step A runs  (standard,   gpt-4o-mini)
+#   PR to main            → Step B runs  (full-audit, gpt-4o)
+#
+# Only one step runs per pipeline execution — the when.conditions are mutually
+# exclusive, so both steps write to the same output alias "cq" safely.
+##############################################################################
+
+##############################################################################
+# HOW TO REFERENCE OUTPUTS IN DOWNSTREAM STEPS OR STAGES
+# (scope: Pipeline — available everywhere after this StepGroup)
+#
+# All presets:
+#   <+pipeline.variables.cq.OVERALL_SCORE>
+#   <+pipeline.variables.cq.MAINTAINABILITY_SCORE>
+#   <+pipeline.variables.cq.SECURITY_SCORE>
+#   <+pipeline.variables.cq.PERFORMANCE_SCORE>
+#   <+pipeline.variables.cq.RELIABILITY_SCORE>
+#   <+pipeline.variables.cq.CODE_SMELLS>
+#   <+pipeline.variables.cq.CRITICAL_ISSUES>
+#   <+pipeline.variables.cq.SUMMARY>
+#   <+pipeline.variables.cq.PROMPT_PRESET>    ← tells you which step ran
+#
+# Full-audit only (N/A for standard):
+#   <+pipeline.variables.cq.TESTABILITY_SCORE>
+#   <+pipeline.variables.cq.COMPLEXITY_SCORE>
+#   <+pipeline.variables.cq.DUPLICATION_SCORE>
+#   <+pipeline.variables.cq.SEVERITY>
+#   <+pipeline.variables.cq.DEBT_HOURS_ESTIMATE>
+#   <+pipeline.variables.cq.FINDINGS_COUNT>
+#   <+pipeline.variables.cq.TOP_FINDING>
+#   <+pipeline.variables.cq.TOP_RECOMMENDATION>
+#
+# Example gate — block deploy if overall score is below 6:
+#   condition: <+pipeline.variables.cq.OVERALL_SCORE> >= 6
+#
+# Example gate — block merge if severity is critical:
+#   condition: <+pipeline.variables.cq.SEVERITY> != "critical"
+#
+# Example gate — require full-audit to pass before production deploy:
+#   condition: <+pipeline.variables.cq.PROMPT_PRESET> == "full-audit"
+#              && <+pipeline.variables.cq.CRITICAL_ISSUES> == 0
+##############################################################################
+
+##############################################################################
+# BUILD & PUBLISH
+#
+#   docker build -t anandraiin3/harness-code-quality:latest \
+#     "/path/to/harness plugin/"
+#
+#   docker push anandraiin3/harness-code-quality:latest
+##############################################################################
