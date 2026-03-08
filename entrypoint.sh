@@ -107,6 +107,33 @@ if [ -z "$API_KEY" ]; then
   exit 1
 fi
 
+# Warn if the API key format looks wrong for the chosen provider.
+# These are non-fatal — key formats can change; this just helps catch
+# obvious mismatches (e.g. an OpenAI key used with anthropic provider).
+case "$PROVIDER" in
+  openai)
+    case "$API_KEY" in
+      sk-*) ;;
+      *)
+        echo "WARNING: PLUGIN_API_KEY does not look like an OpenAI key (expected prefix: sk-)."
+        echo "         Continuing anyway — double-check your secret if the call fails."
+        ;;
+    esac
+    ;;
+  anthropic)
+    case "$API_KEY" in
+      sk-ant-*) ;;
+      *)
+        echo "WARNING: PLUGIN_API_KEY does not look like an Anthropic key (expected prefix: sk-ant-)."
+        echo "         Continuing anyway — double-check your secret if the call fails."
+        ;;
+    esac
+    ;;
+  gemini)
+    # Gemini keys have no fixed prefix — skip format check
+    ;;
+esac
+
 if [ -z "$CUSTOM_PROMPT" ]; then
   case "$PROMPT_PRESET" in
     standard|security|tech-debt|full-audit) ;;

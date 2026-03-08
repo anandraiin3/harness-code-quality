@@ -21,7 +21,7 @@ template:
             privileged: false
             settings:
               llm_provider: <+input>
-              api_key: <+input>
+              api_key: <+secrets.getValue(<+input>)>
               model: <+input>
               prompt_preset: standard
               scan_paths: <+input>
@@ -61,7 +61,7 @@ template:
             privileged: false
             settings:
               llm_provider: <+input>
-              api_key: <+input>
+              api_key: <+secrets.getValue(<+input>)>
               model: <+input>
               prompt_preset: full-audit
               scan_paths: <+input>
