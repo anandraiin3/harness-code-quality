@@ -1,4 +1,3 @@
-# yaml-language-server: $schema=
 template:
   name: Code Quality Checks Using AI Agent
   identifier: Check_Code_Quality_Using_AI
@@ -6,11 +5,11 @@ template:
   type: StepGroup
   orgIdentifier: default
   tags: {}
-  description: "AI code quality scanner (OpenAI / Anthropic / Gemini). Runs standard scan on every build; full-audit on PRs to main. Image: anandraiin3/harness-code-quality:latest | Docs: https://github.com/anandraiin3/harness-code-quality"
+  description: "AI code quality scanner (OpenAI / Anthropic / Gemini). Runs standard scan on every build; full-audit on PRs to main. Quality gate thresholds are enforced directly by the step. Image: anandraiin3/harness-code-quality:latest | Docs: https://github.com/anandraiin3/harness-code-quality"
   spec:
     stageType: CI
+    variables: []
     steps:
-
       - step:
           type: Plugin
           name: AI Code Quality Check
@@ -21,14 +20,22 @@ template:
             privileged: false
             settings:
               llm_provider: <+input>
-              api_key: <+secrets.getValue(<+input>)>
+              api_key: <+input>
               model: <+input>
               prompt_preset: standard
               scan_paths: <+input>
               file_extensions: <+input>
               max_files: <+input>
               timeout_seconds: <+input>
+              # Quality gate — standard scan enforces scores; critical blocking is lenient
+              # to avoid false positives on non-PR builds. Adjust as needed.
               fail_on_critical: "false"
+              fail_on_severity: "high"
+              min_overall_score: "6"
+              min_security_score: "7"
+              min_reliability_score: "7"
+              min_maintainability_score: "6"
+              min_performance_score: "6"
             outputVariables:
               - name: PROMPT_PRESET
               - name: OVERALL_SCORE
@@ -50,7 +57,6 @@ template:
           when:
             stageStatus: Success
             condition: <+codebase.prNumber> == null || <+codebase.targetBranch> != "main"
-
       - step:
           type: Plugin
           name: AI Code Quality Full Audit
@@ -61,7 +67,7 @@ template:
             privileged: false
             settings:
               llm_provider: <+input>
-              api_key: <+secrets.getValue(<+input>)>
+              api_key: <+input>
               model: <+input>
               prompt_preset: full-audit
               scan_paths: <+input>
@@ -69,7 +75,17 @@ template:
               max_files: <+input>
               max_chars: "200000"
               timeout_seconds: <+input>
+              # Quality gate — full audit enforces all thresholds strictly before merge to main
               fail_on_critical: "true"
+              fail_on_severity: "high"
+              min_overall_score: "6"
+              min_security_score: "7"
+              min_reliability_score: "7"
+              min_maintainability_score: "6"
+              min_performance_score: "6"
+              min_testability_score: "5"
+              min_complexity_score: "5"
+              min_duplication_score: "6"
             outputVariables:
               - name: PROMPT_PRESET
               - name: OVERALL_SCORE
@@ -91,6 +107,5 @@ template:
           when:
             stageStatus: Success
             condition: <+codebase.prNumber> != null && <+codebase.targetBranch> == "main"
-
     when:
       stageStatus: Success

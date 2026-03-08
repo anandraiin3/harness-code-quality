@@ -19,7 +19,28 @@
 #                               Ignored for explicitly listed files in SCAN_PATHS.
 #   PLUGIN_MAX_FILES          - Max source files to collect (default: 20)
 #   PLUGIN_MAX_CHARS          - Max characters of code to send (default: 100000)
-#   PLUGIN_FAIL_ON_CRITICAL   - Exit non-zero if critical_issues > 0 (default: false)
+#   PLUGIN_FAIL_ON_CRITICAL   - Exit non-zero if critical_issues > 0 (default: true)
+#   PLUGIN_FAIL_ON_SEVERITY   - Exit non-zero if severity is at or above this level.
+#                               Values: critical | high | medium | none  (default: high)
+#                               'high' = fail on high or critical severity
+#                               'none' = disable severity check
+#
+# QUALITY GATE THRESHOLDS (fail the step if the metric falls below / exceeds):
+#   Score minimums (0-10 float; set to 0 to disable that check):
+#   PLUGIN_MIN_OVERALL_SCORE          - default: 6  (SonarQube "C" grade equivalent)
+#   PLUGIN_MIN_SECURITY_SCORE         - default: 7  (OWASP ASVS L1 / PCI-DSS req 6)
+#   PLUGIN_MIN_RELIABILITY_SCORE      - default: 7  (SRE / SLA practices)
+#   PLUGIN_MIN_MAINTAINABILITY_SCORE  - default: 6  (SonarQube "B" grade equivalent)
+#   PLUGIN_MIN_PERFORMANCE_SCORE      - default: 6  (Google SRE load-testing baseline)
+#   PLUGIN_MIN_TESTABILITY_SCORE      - default: 5  (N/A scores are automatically skipped)
+#   PLUGIN_MIN_COMPLEXITY_SCORE       - default: 5  (N/A scores are automatically skipped)
+#   PLUGIN_MIN_DUPLICATION_SCORE      - default: 6  (N/A scores are automatically skipped)
+#
+#   Count maximums (-1 to disable that check):
+#   PLUGIN_MAX_CODE_SMELLS            - default: -1 (disabled; 10 is a reasonable gate)
+#   PLUGIN_MAX_DEBT_HOURS             - default: -1 (disabled; 16 ≈ 2 working days)
+#   PLUGIN_MAX_FINDINGS_COUNT         - default: -1 (disabled; 10 is a reasonable gate)
+#
 #   PLUGIN_TIMEOUT_SECONDS    - Max seconds to wait for a single LLM API response (default: 300)
 #                               Increase for large codebases / slow providers.
 #                               The models-listing call always uses a 10 s hard limit.
@@ -59,7 +80,24 @@ SCAN_PATHS="${PLUGIN_SCAN_PATHS:-}"          # empty = scan full SOURCE_DIR
 FILE_EXTS="${PLUGIN_FILE_EXTENSIONS:-cs,py,js,ts,java}"
 MAX_FILES="${PLUGIN_MAX_FILES:-20}"
 MAX_CHARS="${PLUGIN_MAX_CHARS:-100000}"
-FAIL_ON_CRITICAL="${PLUGIN_FAIL_ON_CRITICAL:-false}"
+FAIL_ON_CRITICAL="${PLUGIN_FAIL_ON_CRITICAL:-true}"
+FAIL_ON_SEVERITY="${PLUGIN_FAIL_ON_SEVERITY:-high}"
+
+# Score minimums — 0 disables the check; N/A values are always skipped
+MIN_OVERALL_SCORE="${PLUGIN_MIN_OVERALL_SCORE:-6}"
+MIN_SECURITY_SCORE="${PLUGIN_MIN_SECURITY_SCORE:-7}"
+MIN_RELIABILITY_SCORE="${PLUGIN_MIN_RELIABILITY_SCORE:-7}"
+MIN_MAINTAINABILITY_SCORE="${PLUGIN_MIN_MAINTAINABILITY_SCORE:-6}"
+MIN_PERFORMANCE_SCORE="${PLUGIN_MIN_PERFORMANCE_SCORE:-6}"
+MIN_TESTABILITY_SCORE="${PLUGIN_MIN_TESTABILITY_SCORE:-5}"
+MIN_COMPLEXITY_SCORE="${PLUGIN_MIN_COMPLEXITY_SCORE:-5}"
+MIN_DUPLICATION_SCORE="${PLUGIN_MIN_DUPLICATION_SCORE:-6}"
+
+# Count maximums — -1 disables the check; N/A values are always skipped
+MAX_CODE_SMELLS="${PLUGIN_MAX_CODE_SMELLS:--1}"
+MAX_DEBT_HOURS="${PLUGIN_MAX_DEBT_HOURS:--1}"
+MAX_FINDINGS_COUNT="${PLUGIN_MAX_FINDINGS_COUNT:--1}"
+
 TIMEOUT_SECONDS="${PLUGIN_TIMEOUT_SECONDS:-300}"
 RETRY_COUNT="${PLUGIN_RETRY_COUNT:-2}"
 PROMPT_PRESET="${PLUGIN_PROMPT_PRESET:-standard}"
@@ -805,13 +843,120 @@ echo ""
 echo "Output variables written to: $OUTPUT_FILE"
 
 # ---------------------------------------------------------------------------
-# Optional: fail the step if critical issues are found
+# Quality gate — evaluate all thresholds and fail if any are violated
 # ---------------------------------------------------------------------------
-if [ "$FAIL_ON_CRITICAL" = "true" ] && [ "$CRITICAL_ISSUES" != "N/A" ] && [ "$CRITICAL_ISSUES" -gt 0 ]; then
+
+# Returns 0 (true) if $1 is a usable numeric value (not N/A / empty)
+is_numeric() {
+  [ -z "$1" ] && return 1
+  [ "$1" = "N/A" ] && return 1
+  awk -v v="$1" 'BEGIN { exit !(v == v+0) }' 2>/dev/null
+}
+
+# Returns 0 (true) if float $1 is strictly below float $2
+is_below() { awk -v val="$1" -v thr="$2" 'BEGIN { exit !(val < thr) }'; }
+
+# Returns 0 (true) if integer $1 is strictly above integer $2
+is_above() { awk -v val="$1" -v thr="$2" 'BEGIN { exit !(val > thr) }'; }
+
+GATE_VIOLATIONS=()
+
+# ── Blocking: critical issues ────────────────────────────────────────────────
+if [ "$FAIL_ON_CRITICAL" = "true" ]; then
+  if is_numeric "$CRITICAL_ISSUES" && is_above "$CRITICAL_ISSUES" "0"; then
+    GATE_VIOLATIONS+=("Critical issues: ${CRITICAL_ISSUES} found (threshold: 0)")
+  fi
+fi
+
+# ── Blocking: severity ───────────────────────────────────────────────────────
+if [ "$FAIL_ON_SEVERITY" != "none" ] && [ "$SEVERITY" != "N/A" ] && [ "$SEVERITY" != "none" ] && [ -n "$SEVERITY" ]; then
+  sev_fail=false
+  case "$FAIL_ON_SEVERITY" in
+    medium)
+      if [ "$SEVERITY" = "medium" ] || [ "$SEVERITY" = "high" ] || [ "$SEVERITY" = "critical" ]; then
+        sev_fail=true
+      fi
+      ;;
+    high)
+      if [ "$SEVERITY" = "high" ] || [ "$SEVERITY" = "critical" ]; then
+        sev_fail=true
+      fi
+      ;;
+    critical)
+      if [ "$SEVERITY" = "critical" ]; then
+        sev_fail=true
+      fi
+      ;;
+  esac
+  if [ "$sev_fail" = "true" ]; then
+    GATE_VIOLATIONS+=("Severity: '${SEVERITY}' meets or exceeds block level '${FAIL_ON_SEVERITY}'")
+  fi
+fi
+
+# ── Score minimums (skip if threshold is 0 or score is N/A) ─────────────────
+check_score() {
+  local label="$1" value="$2" threshold="$3"
+  [ "$threshold" = "0" ] && return 0
+  is_numeric "$value" || return 0
+  is_numeric "$threshold" || return 0
+  if is_below "$value" "$threshold"; then
+    GATE_VIOLATIONS+=("${label}: ${value}/10 is below minimum (${threshold})")
+  fi
+}
+
+check_score "Overall score"         "$OVERALL_SCORE"         "$MIN_OVERALL_SCORE"
+check_score "Security score"        "$SECURITY_SCORE"        "$MIN_SECURITY_SCORE"
+check_score "Reliability score"     "$RELIABILITY_SCORE"     "$MIN_RELIABILITY_SCORE"
+check_score "Maintainability score" "$MAINTAINABILITY_SCORE" "$MIN_MAINTAINABILITY_SCORE"
+check_score "Performance score"     "$PERFORMANCE_SCORE"     "$MIN_PERFORMANCE_SCORE"
+check_score "Testability score"     "$TESTABILITY_SCORE"     "$MIN_TESTABILITY_SCORE"
+check_score "Complexity score"      "$COMPLEXITY_SCORE"      "$MIN_COMPLEXITY_SCORE"
+check_score "Duplication score"     "$DUPLICATION_SCORE"     "$MIN_DUPLICATION_SCORE"
+
+# ── Count maximums (skip if threshold is -1 or value is N/A) ────────────────
+check_count() {
+  local label="$1" value="$2" threshold="$3"
+  [ "$threshold" = "-1" ] && return 0
+  is_numeric "$value"     || return 0
+  is_numeric "$threshold" || return 0
+  if is_above "$value" "$threshold"; then
+    GATE_VIOLATIONS+=("${label}: ${value} exceeds maximum (${threshold})")
+  fi
+}
+
+check_count "Code smells"      "$CODE_SMELLS"       "$MAX_CODE_SMELLS"
+check_count "Debt hours"       "$DEBT_HOURS_ESTIMATE" "$MAX_DEBT_HOURS"
+check_count "Findings count"   "$FINDINGS_COUNT"    "$MAX_FINDINGS_COUNT"
+
+# ── Print result ─────────────────────────────────────────────────────────────
+echo ""
+if [ "${#GATE_VIOLATIONS[@]}" -gt 0 ]; then
+  echo "========================================="
+  echo " QUALITY GATE: FAILED"
+  echo "========================================="
+  for violation in "${GATE_VIOLATIONS[@]}"; do
+    echo "  FAIL  $violation"
+  done
+  echo "-----------------------------------------"
+  [ "$TOP_FINDING"        != "N/A" ] && echo " Top Finding:         $TOP_FINDING"
+  [ "$TOP_RECOMMENDATION" != "N/A" ] && echo " Top Recommendation:  $TOP_RECOMMENDATION"
+  echo " Summary:             $SUMMARY"
+  echo "========================================="
   echo ""
-  echo "FAIL: $CRITICAL_ISSUES critical issue(s) detected."
-  echo "      Set plugin setting 'fail_on_critical: false' to allow the step to pass."
+  echo "To adjust thresholds, set these plugin settings:"
+  echo "  fail_on_critical: true|false"
+  echo "  fail_on_severity: critical|high|medium|none"
+  echo "  min_overall_score / min_security_score / min_reliability_score"
+  echo "  min_maintainability_score / min_performance_score"
+  echo "  min_testability_score / min_complexity_score / min_duplication_score"
+  echo "  max_code_smells / max_debt_hours / max_findings_count"
   exit 1
+else
+  echo "========================================="
+  echo " QUALITY GATE: PASSED"
+  echo "========================================="
+  echo " All configured thresholds met."
+  echo "========================================="
 fi
 
 exit 0

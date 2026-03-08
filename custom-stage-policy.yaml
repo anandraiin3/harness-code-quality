@@ -1,0 +1,82 @@
+template:
+  name: Enforce Code Quality Checks
+  identifier: Enforce_Code_Quality_Checks
+  versionLabel: v2
+  type: StepGroup
+  orgIdentifier: default
+  tags: {}
+  description: "OPA policy enforcement for AI code quality results. Run in a Custom stage after the Build stage. Mirrors the same conditions as the AI Code Quality StepGroup — Standard Check policy runs on non-PR/non-main builds; Full Audit policy runs on PRs to main."
+  spec:
+    stageType: Custom
+    variables: []
+    steps:
+      - step:
+          type: Policy
+          name: Enforce Standard Check Policy
+          identifier: Enforce_Standard_Check_Policy
+          timeout: 10m
+          spec:
+            policySets:
+              - org.AI_Code_Quality_Checks
+            type: Custom
+            policySetDetails: {}
+            policySpec:
+              payload: |-
+                {
+                  "PROMPT_PRESET":         "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Check.output.outputVariables.PROMPT_PRESET>",
+                  "OVERALL_SCORE":         "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Check.output.outputVariables.OVERALL_SCORE>",
+                  "MAINTAINABILITY_SCORE": "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Check.output.outputVariables.MAINTAINABILITY_SCORE>",
+                  "SECURITY_SCORE":        "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Check.output.outputVariables.SECURITY_SCORE>",
+                  "PERFORMANCE_SCORE":     "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Check.output.outputVariables.PERFORMANCE_SCORE>",
+                  "RELIABILITY_SCORE":     "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Check.output.outputVariables.RELIABILITY_SCORE>",
+                  "TESTABILITY_SCORE":     "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Check.output.outputVariables.TESTABILITY_SCORE>",
+                  "COMPLEXITY_SCORE":      "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Check.output.outputVariables.COMPLEXITY_SCORE>",
+                  "DUPLICATION_SCORE":     "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Check.output.outputVariables.DUPLICATION_SCORE>",
+                  "CODE_SMELLS":           "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Check.output.outputVariables.CODE_SMELLS>",
+                  "CRITICAL_ISSUES":       "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Check.output.outputVariables.CRITICAL_ISSUES>",
+                  "SEVERITY":              "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Check.output.outputVariables.SEVERITY>",
+                  "DEBT_HOURS_ESTIMATE":   "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Check.output.outputVariables.DEBT_HOURS_ESTIMATE>",
+                  "FINDINGS_COUNT":        "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Check.output.outputVariables.FINDINGS_COUNT>",
+                  "TOP_FINDING":           "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Check.output.outputVariables.TOP_FINDING>",
+                  "TOP_RECOMMENDATION":    "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Check.output.outputVariables.TOP_RECOMMENDATION>",
+                  "SUMMARY":               "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Check.output.outputVariables.SUMMARY>"
+                }
+          when:
+            stageStatus: Success
+            condition: <+codebase.prNumber> == null || <+codebase.targetBranch> != "main"
+      - step:
+          type: Policy
+          name: Enforce Full Audit Policy
+          identifier: Enforce_Full_Audit_Policy
+          timeout: 10m
+          spec:
+            policySets:
+              - org.AI_Code_Quality_Checks
+            type: Custom
+            policySetDetails: {}
+            policySpec:
+              payload: |-
+                {
+                  "PROMPT_PRESET":         "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Full_Audit.output.outputVariables.PROMPT_PRESET>",
+                  "OVERALL_SCORE":         "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Full_Audit.output.outputVariables.OVERALL_SCORE>",
+                  "MAINTAINABILITY_SCORE": "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Full_Audit.output.outputVariables.MAINTAINABILITY_SCORE>",
+                  "SECURITY_SCORE":        "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Full_Audit.output.outputVariables.SECURITY_SCORE>",
+                  "PERFORMANCE_SCORE":     "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Full_Audit.output.outputVariables.PERFORMANCE_SCORE>",
+                  "RELIABILITY_SCORE":     "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Full_Audit.output.outputVariables.RELIABILITY_SCORE>",
+                  "TESTABILITY_SCORE":     "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Full_Audit.output.outputVariables.TESTABILITY_SCORE>",
+                  "COMPLEXITY_SCORE":      "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Full_Audit.output.outputVariables.COMPLEXITY_SCORE>",
+                  "DUPLICATION_SCORE":     "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Full_Audit.output.outputVariables.DUPLICATION_SCORE>",
+                  "CODE_SMELLS":           "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Full_Audit.output.outputVariables.CODE_SMELLS>",
+                  "CRITICAL_ISSUES":       "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Full_Audit.output.outputVariables.CRITICAL_ISSUES>",
+                  "SEVERITY":              "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Full_Audit.output.outputVariables.SEVERITY>",
+                  "DEBT_HOURS_ESTIMATE":   "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Full_Audit.output.outputVariables.DEBT_HOURS_ESTIMATE>",
+                  "FINDINGS_COUNT":        "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Full_Audit.output.outputVariables.FINDINGS_COUNT>",
+                  "TOP_FINDING":           "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Full_Audit.output.outputVariables.TOP_FINDING>",
+                  "TOP_RECOMMENDATION":    "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Full_Audit.output.outputVariables.TOP_RECOMMENDATION>",
+                  "SUMMARY":               "<+pipeline.stages.Build.spec.execution.steps.Code_Quality_Checks.steps.AI_Code_Quality_Full_Audit.output.outputVariables.SUMMARY>"
+                }
+          when:
+            stageStatus: Success
+            condition: <+codebase.prNumber> != null && <+codebase.targetBranch> == "main"
+    when:
+      stageStatus: Success
