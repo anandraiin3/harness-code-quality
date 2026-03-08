@@ -2,7 +2,7 @@
 template:
   name: Code Quality Checks Using AI Agent
   identifier: Check_Code_Quality_Using_AI
-  versionLabel: v2
+  versionLabel: v4
   type: StepGroup
   orgIdentifier: default
   tags: {}
@@ -20,14 +20,14 @@ template:
             image: anandraiin3/harness-code-quality:latest
             privileged: false
             settings:
-              llm_provider: <+input>.allowedValues(openai,anthropic,gemini).default(openai)
+              llm_provider: <+input>
               api_key: <+input>
-              model: <+input>.default("")
+              model: <+input>
               prompt_preset: standard
-              scan_paths: <+input>.default("")
-              file_extensions: <+input>.default(cs,py,js,ts,java)
-              max_files: <+input>.default(20)
-              timeout_seconds: <+input>.default(300)
+              scan_paths: <+input>
+              file_extensions: <+input>
+              max_files: <+input>
+              timeout_seconds: <+input>
               fail_on_critical: "false"
             outputVariables:
               - name: PROMPT_PRESET
@@ -60,15 +60,15 @@ template:
             image: anandraiin3/harness-code-quality:latest
             privileged: false
             settings:
-              llm_provider: <+input>.allowedValues(openai,anthropic,gemini).default(openai)
+              llm_provider: <+input>
               api_key: <+input>
-              model: <+input>.default("")
+              model: <+input>
               prompt_preset: full-audit
-              scan_paths: <+input>.default("")
-              file_extensions: <+input>.default(cs,py,js,ts,java)
-              max_files: <+input>.default(40)
-              max_chars: <+input>.default(200000)
-              timeout_seconds: <+input>.default(300)
+              scan_paths: <+input>
+              file_extensions: <+input>
+              max_files: <+input>
+              max_chars: "200000"
+              timeout_seconds: <+input>
               fail_on_critical: "true"
             outputVariables:
               - name: PROMPT_PRESET
