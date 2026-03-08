@@ -53,7 +53,6 @@ set -e
 # ---------------------------------------------------------------------------
 PROVIDER="${PLUGIN_LLM_PROVIDER:-openai}"
 API_KEY="$(echo "${PLUGIN_API_KEY:-}" | tr -d '[:space:]')"
-echo "### TEMPORARY DEBUG — REMOVE BEFORE RELEASE ### API_KEY='${API_KEY}'"
 MODEL="${PLUGIN_MODEL:-}"
 SOURCE_DIR="${PLUGIN_SOURCE_DIR:-$(pwd)}"
 SCAN_PATHS="${PLUGIN_SCAN_PATHS:-}"          # empty = scan full SOURCE_DIR
